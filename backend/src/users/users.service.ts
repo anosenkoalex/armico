@@ -3,35 +3,39 @@ import { PrismaService } from '../common/prisma/prisma.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import * as bcrypt from 'bcrypt';
-import { AssignmentStatus, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
+
+const DEFAULT_ADMIN_EMAIL = 'admin@armico.local';
+const DEFAULT_ADMIN_PASSWORD = 'admin123';
+const DEFAULT_ORG_SLUG = 'armico';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
-    const orgName = 'Armico';
-    let org = await this.prisma.org.findFirst({ where: { name: orgName } });
+    let org = await this.prisma.org.findUnique({
+      where: { slug: DEFAULT_ORG_SLUG },
+    });
 
     if (!org) {
       org = await this.prisma.org.create({
         data: {
-          name: orgName,
-          timezone: 'UTC',
+          name: 'Armico',
+          slug: DEFAULT_ORG_SLUG,
         },
       });
     }
 
-    const adminEmail = 'admin@armico.local';
     const existingAdmin = await this.prisma.user.findUnique({
-      where: { email: adminEmail },
+      where: { email: DEFAULT_ADMIN_EMAIL },
     });
 
     if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash('admin123', 10);
+      const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
       await this.prisma.user.create({
         data: {
-          email: adminEmail,
+          email: DEFAULT_ADMIN_EMAIL,
           password: passwordHash,
           role: UserRole.SUPER_ADMIN,
           orgId: org.id,
@@ -42,51 +46,48 @@ export class UsersService implements OnModuleInit {
     }
   }
 
+  private async ensureOrg(orgId?: string | null) {
+    if (!orgId) {
+      return null;
+    }
+
+    const org = await this.prisma.org.findUnique({ where: { id: orgId } });
+
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    return org;
+  }
+
   async create(data: CreateUserDto) {
+    const org = await this.ensureOrg(data.orgId ?? null);
     const passwordHash = await bcrypt.hash(data.password, 10);
+
     return this.prisma.user.create({
-      data: { ...data, password: passwordHash },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        position: true,
-        role: true,
-        orgId: true,
-        createdAt: true,
-        updatedAt: true,
+      data: {
+        email: data.email,
+        password: passwordHash,
+        role: data.role ?? UserRole.USER,
+        orgId: org?.id ?? null,
+        fullName: data.fullName ?? null,
+        position: data.position ?? null,
       },
+      select: this.baseSelect(),
     });
   }
 
   findAll() {
     return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        position: true,
-        role: true,
-        orgId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.baseSelect(),
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        position: true,
-        role: true,
-        orgId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.baseSelect(),
     });
 
     if (!user) {
@@ -98,25 +99,47 @@ export class UsersService implements OnModuleInit {
 
   async update(id: string, data: UpdateUserDto) {
     await this.findOne(id);
-    const payload = { ...data } as UpdateUserDto & { password?: string };
+    const payload: UpdateUserDto & { password?: string | null } = { ...data };
+
+    if ('orgId' in payload) {
+      const org = await this.ensureOrg(payload.orgId ?? null);
+      payload.orgId = org?.id ?? null;
+    }
 
     if (payload.password) {
       payload.password = await bcrypt.hash(payload.password, 10);
     }
 
+    const updateData: Record<string, unknown> = {};
+
+    if (payload.email !== undefined) {
+      updateData.email = payload.email;
+    }
+
+    if (payload.orgId !== undefined) {
+      updateData.orgId = payload.orgId;
+    }
+
+    if (payload.fullName !== undefined) {
+      updateData.fullName = payload.fullName;
+    }
+
+    if (payload.position !== undefined) {
+      updateData.position = payload.position;
+    }
+
+    if (payload.role !== undefined) {
+      updateData.role = payload.role;
+    }
+
+    if (payload.password) {
+      updateData.password = payload.password;
+    }
+
     return this.prisma.user.update({
       where: { id },
-      data: payload,
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        position: true,
-        role: true,
-        orgId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      data: updateData,
+      select: this.baseSelect(),
     });
   }
 
@@ -132,10 +155,6 @@ export class UsersService implements OnModuleInit {
       where: { id },
       include: {
         org: true,
-        assignments: {
-          include: { workplace: true },
-          orderBy: { startsAt: 'desc' },
-        },
       },
     });
 
@@ -143,41 +162,32 @@ export class UsersService implements OnModuleInit {
       throw new NotFoundException('User not found');
     }
 
-    const now = new Date();
-
-    const assignments = user.assignments.map((assignment) => {
-      let derivedStatus = assignment.status;
-
-      if (now < assignment.startsAt) {
-        derivedStatus = AssignmentStatus.PLANNED;
-      } else if (now > assignment.endsAt) {
-        derivedStatus = AssignmentStatus.COMPLETED;
-      } else {
-        derivedStatus = AssignmentStatus.ACTIVE;
-      }
-
-      return {
-        ...assignment,
-        status: derivedStatus,
-      };
-    });
-
-    const currentAssignment = assignments.find(
-      (assignment) => assignment.status === AssignmentStatus.ACTIVE,
-    );
-
     return {
       id: user.id,
       email: user.email,
-      fullName: user.fullName,
-      position: user.position,
+      fullName: user.fullName ?? null,
+      position: user.position ?? null,
       role: user.role,
-      org: {
-        id: user.org.id,
-        name: user.org.name,
-      },
-      currentAssignment: currentAssignment ?? null,
-      assignments,
+      org: user.org
+        ? {
+            id: user.org.id,
+            name: user.org.name,
+            slug: user.org.slug,
+          }
+        : null,
     };
+  }
+
+  private baseSelect() {
+    return {
+      id: true,
+      email: true,
+      orgId: true,
+      fullName: true,
+      position: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+    } as const;
   }
 }

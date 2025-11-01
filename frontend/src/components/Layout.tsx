@@ -1,88 +1,153 @@
-import { useMemo, useState } from 'react';
-import { Layout, Menu, Button, Space, Typography, Select } from 'antd';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { BellOutlined } from '@ant-design/icons';
+import {
+  Badge,
+  Button,
+  Dropdown,
+  Layout,
+  Menu,
+  Skeleton,
+  Space,
+  Spin,
+  Typography,
+} from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { fetchNotifications } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.js';
 
 const { Header, Sider, Content } = Layout;
 
-const languageOptions = [
-  { value: 'en', label: 'English' },
-  { value: 'ru', label: 'Русский' },
-];
-
 const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
-  const { t, i18n } = useTranslation();
-  const { logout, user } = useAuth();
+  const { t } = useTranslation();
+  const { logout, user, profile, isFetchingProfile } = useAuth();
 
-  const menuItems = useMemo(() => {
+  const navigationItems = useMemo(() => {
     const items = [
-      { key: 'my-place', path: '/', labelKey: 'layout.myPlace' },
+      { key: 'dashboard', path: '/dashboard', label: t('layout.dashboard') },
+      { key: 'my-place', path: '/my-place', label: t('layout.myPlace') },
     ];
 
-    if (user?.role && ['SUPER_ADMIN', 'ORG_ADMIN', 'MANAGER'].includes(user.role)) {
-      items.push({ key: 'admin', path: '/admin', labelKey: 'layout.admin' });
+    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
+      items.push(
+        {
+          key: 'workplaces',
+          path: '/workplaces',
+          label: t('layout.workplaces'),
+        },
+        {
+          key: 'assignments',
+          path: '/assignments',
+          label: t('layout.assignments'),
+        },
+      );
     }
 
     return items;
-  }, [user?.role]);
+  }, [user?.role, t]);
 
-  const selectedKey =
-    menuItems.find((item) =>
-      item.path === '/'
-        ? location.pathname === '/'
+  const selectedKey = useMemo(() => {
+    const match = navigationItems.find((item) =>
+      item.path === '/dashboard'
+        ? location.pathname === '/dashboard'
         : location.pathname.startsWith(item.path),
-    )?.key ?? menuItems[0]?.key;
+    );
+    return match?.key ?? navigationItems[0]?.key ?? '';
+  }, [location.pathname, navigationItems]);
+
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications', 'me'],
+    queryFn: () => fetchNotifications(10),
+    refetchInterval: 60_000,
+  });
+
+  const notifications = notificationsQuery.data ?? [];
+
+  const notificationsOverlay = (
+    <div className="w-80 max-h-80 overflow-y-auto px-3 py-2">
+      {notifications.length === 0 ? (
+        <Typography.Text type="secondary">
+          {t('notifications.empty')}
+        </Typography.Text>
+      ) : (
+        notifications.map((item) => {
+          const workplace =
+            (item.payload?.workplaceName as string | undefined) ??
+            (item.payload?.workplaceCode as string | undefined) ??
+            '';
+          const date = dayjs(item.createdAt).format('DD.MM.YYYY HH:mm');
+          const key =
+            item.type === 'ASSIGNMENT_CREATED'
+              ? 'notifications.created'
+              : 'notifications.updated';
+
+          return (
+            <div key={item.id} className="py-2 border-b last:border-none">
+              <Typography.Text strong>{t(key, { workplace })}</Typography.Text>
+              <div>
+                <Typography.Text type="secondary">{date}</Typography.Text>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 
   return (
     <Layout className="min-h-screen">
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        breakpoint="lg"
-      >
+      <Sider breakpoint="lg">
         <div className="text-white text-lg font-semibold px-4 py-3">Armico</div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
+          items={navigationItems.map((item) => ({
+            key: item.key,
+            label: item.label,
+          }))}
           onClick={(info) => {
-            const target = menuItems.find((item) => item.key === info.key);
+            const target = navigationItems.find(
+              (item) => item.key === info.key,
+            );
             if (target) {
               navigate(target.path);
             }
           }}
-          items={menuItems.map((item) => ({
-            key: item.key,
-            label: t(item.labelKey),
-          }))}
         />
       </Sider>
       <Layout>
         <Header className="bg-white px-6 flex items-center justify-between shadow-sm">
-          <Typography.Text className="font-medium">
-            {t('layout.welcome')} {user?.email ?? ''}
-          </Typography.Text>
           <Space size="middle">
-            <Select
-              value={i18n.language}
-              options={languageOptions}
-              aria-label={t('common.language')}
-              onChange={(value) => {
-                void i18n.changeLanguage(value);
-              }}
-              style={{ width: 120 }}
-            />
+            <Typography.Text className="font-medium">
+              {t('layout.welcome')} {profile?.fullName ?? profile?.email ?? ''}
+            </Typography.Text>
+            {isFetchingProfile && <Spin size="small" />}
+          </Space>
+          <Space size="large">
+            <Dropdown
+              trigger={['click']}
+              dropdownRender={() => notificationsOverlay}
+              placement="bottomRight"
+            >
+              <Badge
+                count={notifications.length}
+                overflowCount={99}
+                offset={[-4, 4]}
+              >
+                <Button type="text" icon={<BellOutlined />} />
+              </Badge>
+            </Dropdown>
             <Button onClick={logout}>{t('layout.logout')}</Button>
           </Space>
         </Header>
         <Content className="p-6 bg-gray-100 min-h-0">
           <div className="bg-white rounded-lg shadow-sm p-6 min-h-[70vh]">
-            <Outlet />
+            {isFetchingProfile && !profile ? <Skeleton active /> : <Outlet />}
           </div>
         </Content>
       </Layout>

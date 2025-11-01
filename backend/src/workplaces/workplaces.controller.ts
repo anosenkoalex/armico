@@ -1,11 +1,11 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { WorkplacesService } from './workplaces.service.js';
@@ -22,6 +22,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { UserRole } from '@prisma/client';
+import {
+  ListWorkplacesDto,
+  listWorkplacesSchema,
+} from './dto/list-workplaces.dto.js';
 
 @Controller('workplaces')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,7 +33,7 @@ export class WorkplacesController {
   constructor(private readonly workplacesService: WorkplacesService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   create(
     @Body(new ZodValidationPipe(createWorkplaceSchema))
     payload: CreateWorkplaceDto,
@@ -38,35 +42,27 @@ export class WorkplacesController {
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
-  findAll() {
-    return this.workplacesService.findAll();
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  findAll(
+    @Query(new ZodValidationPipe(listWorkplacesSchema))
+    query: ListWorkplacesDto,
+  ) {
+    return this.workplacesService.findAll(query);
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.ORG_ADMIN,
-    UserRole.MANAGER,
-    UserRole.VIEWER,
-  )
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   findOne(@Param('id') id: string) {
     return this.workplacesService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateWorkplaceSchema))
     payload: UpdateWorkplaceDto,
   ) {
     return this.workplacesService.update(id, payload);
-  }
-
-  @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.workplacesService.remove(id);
   }
 }
