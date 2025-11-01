@@ -1,3 +1,4 @@
+import { AssignmentStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export const createAssignmentSchema = z
@@ -7,6 +8,7 @@ export const createAssignmentSchema = z
     workplaceId: z.string().min(1),
     startsAt: z.coerce.date(),
     endsAt: z.coerce.date(),
+    status: z.nativeEnum(AssignmentStatus).default(AssignmentStatus.PLANNED),
   })
   .refine((data) => data.endsAt > data.startsAt, {
     message: 'endsAt must be after startsAt',

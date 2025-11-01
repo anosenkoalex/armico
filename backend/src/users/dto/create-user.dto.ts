@@ -5,6 +5,8 @@ export const createUserSchema = z.object({
   orgId: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(6),
+  fullName: z.string().min(1),
+  position: z.string().min(1),
   role: z.nativeEnum(UserRole).default(UserRole.WORKER),
 });
 

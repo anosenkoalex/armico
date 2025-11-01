@@ -8,7 +8,10 @@ export class AssignmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   create(data: CreateAssignmentDto) {
-    return this.prisma.assignment.create({ data });
+    return this.prisma.assignment.create({
+      data,
+      include: { user: true, workplace: true },
+    });
   }
 
   findAll() {
@@ -31,15 +34,39 @@ export class AssignmentsService {
   }
 
   async update(id: string, data: UpdateAssignmentDto) {
-    await this.findOne(id);
-    return this.prisma.assignment.update({
+    const existing = await this.prisma.assignment.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const updated = await this.prisma.assignment.update({
       where: { id },
       data,
+      include: { user: true, workplace: true },
     });
+
+    if (
+      (data.workplaceId && data.workplaceId !== existing.workplaceId) ||
+      (data.status && data.status !== existing.status)
+    ) {
+      await this.prisma.notification.create({
+        data: {
+          userId: updated.userId,
+          assignmentId: updated.id,
+          message: `Назначение обновлено: ${updated.workplace.name} (${updated.status})`,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: string) {
     await this.findOne(id);
+    await this.prisma.notification.deleteMany({ where: { assignmentId: id } });
     return this.prisma.assignment.delete({ where: { id } });
   }
 

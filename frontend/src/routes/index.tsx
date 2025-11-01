@@ -1,9 +1,7 @@
 import { Navigate, useRoutes } from 'react-router-dom';
 import Login from '../pages/Login.js';
-import Dashboard from '../pages/Dashboard.js';
-import Workplaces from '../pages/Workplaces.js';
-import Assignments from '../pages/Assignments.js';
 import MyPlace from '../pages/MyPlace.js';
+import Admin from '../pages/Admin.js';
 import AppLayout from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 
@@ -29,10 +27,8 @@ const AppRoutes = () => {
       path: '/',
       element: <ProtectedRoute />,
       children: [
-        { index: true, element: <Dashboard /> },
-        { path: 'workplaces', element: <Workplaces /> },
-        { path: 'assignments', element: <Assignments /> },
-        { path: 'my-place', element: <MyPlace /> },
+        { index: true, element: <MyPlace /> },
+        { path: 'admin', element: <Admin /> },
       ],
     },
     { path: '*', element: <Navigate to="/" replace /> },

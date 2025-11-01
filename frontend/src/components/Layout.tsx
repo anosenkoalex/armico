@@ -1,17 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Layout, Menu, Button, Space, Typography, Select } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.js';
 
 const { Header, Sider, Content } = Layout;
-
-const menuItems = [
-  { key: 'dashboard', path: '/', labelKey: 'layout.dashboard' },
-  { key: 'workplaces', path: '/workplaces', labelKey: 'layout.workplaces' },
-  { key: 'assignments', path: '/assignments', labelKey: 'layout.assignments' },
-  { key: 'my-place', path: '/my-place', labelKey: 'layout.myPlace' },
-];
 
 const languageOptions = [
   { value: 'en', label: 'English' },
@@ -25,12 +18,24 @@ const AppLayout = () => {
   const { t, i18n } = useTranslation();
   const { logout, user } = useAuth();
 
+  const menuItems = useMemo(() => {
+    const items = [
+      { key: 'my-place', path: '/', labelKey: 'layout.myPlace' },
+    ];
+
+    if (user?.role && ['SUPER_ADMIN', 'ORG_ADMIN', 'MANAGER'].includes(user.role)) {
+      items.push({ key: 'admin', path: '/admin', labelKey: 'layout.admin' });
+    }
+
+    return items;
+  }, [user?.role]);
+
   const selectedKey =
     menuItems.find((item) =>
       item.path === '/'
         ? location.pathname === '/'
         : location.pathname.startsWith(item.path),
-    )?.key ?? 'dashboard';
+    )?.key ?? menuItems[0]?.key;
 
   return (
     <Layout className="min-h-screen">
