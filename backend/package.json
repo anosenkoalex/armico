@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nest start --watch",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
     "build": "nest build",
     "start:prod": "node dist/main.js",
     "prisma:gen": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
-    "seed": "ts-node --esm prisma/seed.ts",
+    "seed": "tsx prisma/seed.ts",
     "lint": "eslint .",
     "format": "prettier -w ."
   },
