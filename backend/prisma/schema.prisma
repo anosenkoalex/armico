@@ -7,85 +7,81 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum NotificationType {
+  ASSIGNMENT_CREATED
+  ASSIGNMENT_UPDATED
+}
+
 model Org {
-  id          String        @id @default(cuid())
-  name        String
-  timezone    String        @default("UTC")
-  users       User[]
-  workplaces  Workplace[]
-  assignments Assignment[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id         String       @id @default(cuid())
+  name       String
+  slug       String       @unique
+  users      User[]
+  workplaces Workplace[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 }
 
 model User {
-  id        String   @id @default(cuid())
-  orgId     String
-  org       Org      @relation(fields: [orgId], references: [id])
-  email     String   @unique
-  password  String
-  fullName  String
-  position  String
-  role      UserRole @default(WORKER)
-  assignments Assignment[]
-  notifications Notification[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum UserRole {
-  SUPER_ADMIN
-  ORG_ADMIN
-  MANAGER
-  WORKER
-  VIEWER
+  id             String         @id @default(cuid())
+  orgId          String?
+  org            Org?           @relation(fields: [orgId], references: [id])
+  email          String         @unique
+  password       String
+  fullName       String?
+  position       String?
+  role           UserRole       @default(USER)
+  assignments    Assignment[]
+  notifications  Notification[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model Workplace {
   id          String       @id @default(cuid())
   orgId       String
   org         Org          @relation(fields: [orgId], references: [id])
+  code        String
   name        String
-  address     String
-  latitude    Float?
-  longitude   Float?
-  capacity    Int          @default(0)
+  location    String?
+  isActive    Boolean      @default(true)
+  assignments Assignment[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  assignments Assignment[]
+
+  @@unique([orgId, code])
 }
 
 model Assignment {
-  id           String     @id @default(cuid())
-  orgId        String
-  org          Org        @relation(fields: [orgId], references: [id])
-  userId       String
-  user         User       @relation(fields: [userId], references: [id])
-  workplaceId  String
-  workplace    Workplace  @relation(fields: [workplaceId], references: [id])
-  startsAt     DateTime
-  endsAt       DateTime
-  status       AssignmentStatus @default(PLANNED)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  notifications Notification[]
-
-  @@index([orgId, userId, startsAt, endsAt])
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  workplaceId String
+  workplace   Workplace        @relation(fields: [workplaceId], references: [id])
+  startsAt    DateTime
+  endsAt      DateTime?
+  status      AssignmentStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
 model Notification {
-  id           String      @id @default(cuid())
-  userId       String
-  user         User        @relation(fields: [userId], references: [id])
-  assignmentId String?
-  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
-  message      String
-  readAt       DateTime?
-  createdAt    DateTime    @default(now())
-}
-
-enum AssignmentStatus {
-  PLANNED
-  ACTIVE
-  COMPLETED
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  payload   Json
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
 }

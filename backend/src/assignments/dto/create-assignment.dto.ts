@@ -3,16 +3,20 @@ import { z } from 'zod';
 
 export const createAssignmentSchema = z
   .object({
-    orgId: z.string().min(1),
     userId: z.string().min(1),
     workplaceId: z.string().min(1),
     startsAt: z.coerce.date(),
-    endsAt: z.coerce.date(),
-    status: z.nativeEnum(AssignmentStatus).default(AssignmentStatus.PLANNED),
+    endsAt: z.coerce.date().optional().nullable(),
+    status: z.nativeEnum(AssignmentStatus).optional(),
   })
-  .refine((data) => data.endsAt > data.startsAt, {
-    message: 'endsAt must be after startsAt',
-    path: ['endsAt'],
+  .superRefine((data, ctx) => {
+    if (data.endsAt && data.endsAt <= data.startsAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endsAt'],
+        message: 'endsAt must be after startsAt',
+      });
+    }
   });
 
 export type CreateAssignmentDto = z.infer<typeof createAssignmentSchema>;

@@ -1,11 +1,11 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AssignmentsService } from './assignments.service.js';
@@ -22,6 +22,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { UserRole } from '@prisma/client';
+import {
+  ListAssignmentsDto,
+  listAssignmentsSchema,
+} from './dto/list-assignments.dto.js';
 
 @Controller('assignments')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -29,7 +33,7 @@ export class AssignmentsController {
   constructor(private readonly assignmentsService: AssignmentsService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   create(
     @Body(new ZodValidationPipe(createAssignmentSchema))
     payload: CreateAssignmentDto,
@@ -38,35 +42,27 @@ export class AssignmentsController {
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
-  findAll() {
-    return this.assignmentsService.findAll();
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  findAll(
+    @Query(new ZodValidationPipe(listAssignmentsSchema))
+    query: ListAssignmentsDto,
+  ) {
+    return this.assignmentsService.findAll(query);
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.ORG_ADMIN,
-    UserRole.MANAGER,
-    UserRole.VIEWER,
-  )
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   findOne(@Param('id') id: string) {
     return this.assignmentsService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateAssignmentSchema))
     payload: UpdateAssignmentDto,
   ) {
     return this.assignmentsService.update(id, payload);
-  }
-
-  @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.MANAGER)
-  remove(@Param('id') id: string) {
-    return this.assignmentsService.remove(id);
   }
 }

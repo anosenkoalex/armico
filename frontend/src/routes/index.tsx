@@ -1,7 +1,9 @@
 import { Navigate, useRoutes } from 'react-router-dom';
+import Dashboard from '../pages/Dashboard.js';
 import Login from '../pages/Login.js';
 import MyPlace from '../pages/MyPlace.js';
-import Admin from '../pages/Admin.js';
+import WorkplacesPage from '../pages/Workplaces.js';
+import AssignmentsPage from '../pages/Assignments.js';
 import AppLayout from '../components/Layout.js';
 import { useAuth } from '../context/AuthContext.js';
 
@@ -21,17 +23,20 @@ const AppRoutes = () => {
   const element = useRoutes([
     {
       path: '/login',
-      element: token ? <Navigate to="/" replace /> : <Login />,
+      element: token ? <Navigate to="/dashboard" replace /> : <Login />,
     },
     {
       path: '/',
       element: <ProtectedRoute />,
       children: [
-        { index: true, element: <MyPlace /> },
-        { path: 'admin', element: <Admin /> },
+        { index: true, element: <Navigate to="/dashboard" replace /> },
+        { path: 'dashboard', element: <Dashboard /> },
+        { path: 'my-place', element: <MyPlace /> },
+        { path: 'workplaces', element: <WorkplacesPage /> },
+        { path: 'assignments', element: <AssignmentsPage /> },
       ],
     },
-    { path: '*', element: <Navigate to="/" replace /> },
+    { path: '*', element: <Navigate to="/dashboard" replace /> },
   ]);
 
   return element;

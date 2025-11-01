@@ -2,56 +2,84 @@ import {
   Card,
   Descriptions,
   Flex,
-  List,
   Result,
   Spin,
+  Table,
   Tag,
   Typography,
 } from 'antd';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import {
   Assignment,
   AssignmentStatus,
-  Notification,
-  UserProfile,
-  fetchNotifications,
-  fetchProfile,
+  CurrentWorkplaceResponse,
+  fetchCurrentWorkplace,
 } from '../api/client.js';
+import { useAuth } from '../context/AuthContext.js';
 
-const statusColors: Record<AssignmentStatus, string> = {
-  PLANNED: 'blue',
+const statusColor: Record<AssignmentStatus, string> = {
   ACTIVE: 'green',
-  COMPLETED: 'default',
+  ARCHIVED: 'default',
 };
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleString(undefined, {
-    hour12: false,
-  });
 
 const MyPlace = () => {
   const { t } = useTranslation();
-  const {
-    data: profile,
-    isLoading,
-    isError,
-  } = useQuery<UserProfile>({
-    queryKey: ['me'],
-    queryFn: fetchProfile,
+  const { profile } = useAuth();
+
+  const columns = useMemo(
+    () => [
+      {
+        title: t('assignments.workplace'),
+        dataIndex: ['workplace', 'name'],
+        key: 'workplace',
+        render: (_value: unknown, record: Assignment) => (
+          <span>
+            {record.workplace?.code ? `${record.workplace.code} — ` : ''}
+            {record.workplace?.name}
+          </span>
+        ),
+      },
+      {
+        title: t('myPlace.startsAt'),
+        dataIndex: 'startsAt',
+        key: 'startsAt',
+        render: (value: string) => dayjs(value).format('DD.MM.YYYY HH:mm'),
+      },
+      {
+        title: t('myPlace.endsAt'),
+        dataIndex: 'endsAt',
+        key: 'endsAt',
+        render: (value: string | null) =>
+          value
+            ? dayjs(value).format('DD.MM.YYYY HH:mm')
+            : t('myPlace.noEndDate'),
+      },
+      {
+        title: t('myPlace.status'),
+        dataIndex: 'status',
+        key: 'status',
+        render: (value: AssignmentStatus) => (
+          <Tag color={statusColor[value]}>
+            {value === 'ACTIVE'
+              ? t('assignments.status.active')
+              : t('assignments.status.archived')}
+          </Tag>
+        ),
+      },
+    ],
+    [t],
+  );
+
+  const { data, isLoading } = useQuery<CurrentWorkplaceResponse>({
+    queryKey: ['me', 'current-workplace'],
+    queryFn: fetchCurrentWorkplace,
     refetchInterval: 60_000,
   });
 
-  const {
-    data: notifications,
-    isLoading: notificationsLoading,
-  } = useQuery<Notification[]>({
-    queryKey: ['notifications', 'me'],
-    queryFn: fetchNotifications,
-    refetchInterval: 120_000,
-  });
-
-  if (isLoading) {
+  if (!profile) {
     return (
       <Flex justify="center" align="center" className="min-h-[40vh]">
         <Spin tip={t('common.loading')} />
@@ -59,48 +87,63 @@ const MyPlace = () => {
     );
   }
 
-  if (isError || !profile) {
-    return <Typography.Text type="danger">{t('common.error')}</Typography.Text>;
-  }
-
-  const currentAssignment = profile.currentAssignment;
+  const currentAssignment = data?.assignment ?? null;
+  const currentWorkplace = data?.workplace ?? null;
+  const history = data?.history ?? [];
 
   return (
     <Flex vertical gap={16}>
       <Card title={t('myPlace.title')}>
         <Descriptions column={1} bordered>
           <Descriptions.Item label={t('myPlace.name')}>
-            {profile.fullName}
+            {profile.fullName ?? profile.email}
           </Descriptions.Item>
           <Descriptions.Item label={t('myPlace.position')}>
-            {profile.position}
+            {profile.position ?? t('myPlace.positionUnknown')}
           </Descriptions.Item>
           <Descriptions.Item label={t('myPlace.org')}>
-            {profile.org.name}
+            {profile.org?.name ?? t('myPlace.orgUnknown')}
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
       <Card title={t('myPlace.currentAssignment')}>
-        {!currentAssignment ? (
+        {isLoading ? (
+          <Flex justify="center">
+            <Spin />
+          </Flex>
+        ) : !currentAssignment ? (
           <Result status="info" title={t('myPlace.noAssignment')} />
         ) : (
           <Descriptions column={1} bordered>
             <Descriptions.Item label={t('assignments.workplace')}>
-              {currentAssignment.workplace?.name}
+              {currentWorkplace ? (
+                <Typography.Text>
+                  {currentWorkplace.code ? `${currentWorkplace.code} — ` : ''}
+                  {currentWorkplace.name}
+                </Typography.Text>
+              ) : (
+                t('assignments.workplace')
+              )}
             </Descriptions.Item>
-            <Descriptions.Item label={t('workplaces.address')}>
-              {currentAssignment.workplace?.address}
-            </Descriptions.Item>
+            {currentWorkplace?.location ? (
+              <Descriptions.Item label={t('workplaces.location')}>
+                {currentWorkplace.location}
+              </Descriptions.Item>
+            ) : null}
             <Descriptions.Item label={t('myPlace.startsAt')}>
-              {formatDate(currentAssignment.startsAt)}
+              {dayjs(currentAssignment.startsAt).format('DD.MM.YYYY HH:mm')}
             </Descriptions.Item>
             <Descriptions.Item label={t('myPlace.endsAt')}>
-              {formatDate(currentAssignment.endsAt)}
+              {currentAssignment.endsAt
+                ? dayjs(currentAssignment.endsAt).format('DD.MM.YYYY HH:mm')
+                : t('myPlace.noEndDate')}
             </Descriptions.Item>
             <Descriptions.Item label={t('myPlace.status')}>
-              <Tag color={statusColors[currentAssignment.status]}> 
-                {t(`assignments.status.${currentAssignment.status.toLowerCase()}`)}
+              <Tag color={statusColor[currentAssignment.status]}>
+                {currentAssignment.status === 'ACTIVE'
+                  ? t('assignments.status.active')
+                  : t('assignments.status.archived')}
               </Tag>
             </Descriptions.Item>
           </Descriptions>
@@ -108,53 +151,13 @@ const MyPlace = () => {
       </Card>
 
       <Card title={t('myPlace.assignmentsHistory')}>
-        <List
-          dataSource={profile.assignments}
-          renderItem={(item: Assignment) => (
-            <List.Item key={item.id}>
-              <Flex className="w-full" justify="space-between" align="center">
-                <div>
-                  <Typography.Text strong>
-                    {item.workplace?.name ?? t('assignments.workplace')}
-                  </Typography.Text>
-                  <Typography.Paragraph className="mb-0">
-                    {formatDate(item.startsAt)} → {formatDate(item.endsAt)}
-                  </Typography.Paragraph>
-                  <Typography.Paragraph type="secondary" className="mb-0">
-                    {item.workplace?.address ?? ''}
-                  </Typography.Paragraph>
-                </div>
-                <Tag color={statusColors[item.status]}>
-                  {t(`assignments.status.${item.status.toLowerCase()}`)}
-                </Tag>
-              </Flex>
-            </List.Item>
-          )}
+        <Table
+          rowKey="id"
+          dataSource={history}
+          columns={columns}
+          pagination={false}
           locale={{ emptyText: t('assignments.empty') }}
         />
-      </Card>
-
-      <Card title={t('myPlace.notifications')}>
-        {notificationsLoading ? (
-          <Flex justify="center">
-            <Spin />
-          </Flex>
-        ) : (
-          <List
-            dataSource={notifications ?? []}
-            renderItem={(item: Notification) => (
-              <List.Item key={item.id}>
-                <Flex className="w-full" justify="space-between">
-                  <Typography.Text>{item.message}</Typography.Text>
-                  <Typography.Text type="secondary">
-                    {formatDate(item.createdAt)}
-                  </Typography.Text>
-                </Flex>
-              </List.Item>
-            )}
-            locale={{ emptyText: t('myPlace.noNotifications') }}
-          />
-        )}
       </Card>
     </Flex>
   );

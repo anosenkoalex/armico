@@ -43,7 +43,9 @@ export class OrgsService {
 
   async remove(id: string) {
     await this.findOne(id);
-    await this.prisma.assignment.deleteMany({ where: { orgId: id } });
+    await this.prisma.assignment.deleteMany({
+      where: { workplace: { orgId: id } },
+    });
     await this.prisma.workplace.deleteMany({ where: { orgId: id } });
     await this.prisma.user.deleteMany({ where: { orgId: id } });
     return this.prisma.org.delete({ where: { id } });

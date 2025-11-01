@@ -61,13 +61,16 @@ export class AuthService {
       });
     }
 
-    const org = await this.prisma.org.findUnique({ where: { id: orgId } });
+    let org = null;
+    if (orgId) {
+      org = await this.prisma.org.findUnique({ where: { id: orgId } });
 
-    if (!org) {
-      throw new BadRequestException({
-        code: 'ORG_NOT_FOUND',
-        message: 'Organization not found',
-      });
+      if (!org) {
+        throw new BadRequestException({
+          code: 'ORG_NOT_FOUND',
+          message: 'Organization not found',
+        });
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -76,10 +79,10 @@ export class AuthService {
       data: {
         email,
         password: passwordHash,
-        orgId,
-        fullName,
-        position,
-        role: UserRole.WORKER,
+        orgId: org?.id ?? null,
+        fullName: fullName ?? null,
+        position: position ?? null,
+        role: UserRole.USER,
       },
     });
 

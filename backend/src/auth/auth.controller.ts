@@ -14,9 +14,7 @@ export class AuthController {
   }
 
   @Post('register')
-  register(
-    @Body(new ZodValidationPipe(registerSchema)) payload: RegisterDto,
-  ) {
+  register(@Body(new ZodValidationPipe(registerSchema)) payload: RegisterDto) {
     return this.authService.register(payload);
   }
 }

@@ -1,84 +1,98 @@
 import axios from 'axios';
 
-type JwtPayload = {
+export type JwtPayload = {
   sub: string;
   email: string;
-  orgId: string;
-  role: string;
+  orgId: string | null;
+  role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 };
 
-type LoginRequest = {
+export type LoginPayload = {
   email: string;
   password: string;
 };
 
-type LoginResponse = {
+export type AuthResponse = {
   accessToken: string;
+};
+
+export type PaginatedResponse<T> = {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+  };
 };
 
 export type Org = {
   id: string;
   name: string;
-  timezone: string;
+  slug: string;
 };
 
 export type Workplace = {
   id: string;
   orgId: string;
+  code: string;
   name: string;
-  address: string;
-  capacity: number;
-  latitude?: number | null;
-  longitude?: number | null;
+  location?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  org?: Org;
 };
 
-export type AssignmentStatus = 'PLANNED' | 'ACTIVE' | 'COMPLETED';
+export type AssignmentStatus = 'ACTIVE' | 'ARCHIVED';
 
 export type Assignment = {
   id: string;
-  orgId: string;
   userId: string;
   workplaceId: string;
   startsAt: string;
-  endsAt: string;
+  endsAt: string | null;
   status: AssignmentStatus;
-  workplace?: Workplace;
   user?: {
     id: string;
     email: string;
-    fullName?: string;
+    fullName?: string | null;
   };
+  workplace?: Pick<Workplace, 'id' | 'code' | 'name' | 'location'>;
 };
+
+export type NotificationType = 'ASSIGNMENT_CREATED' | 'ASSIGNMENT_UPDATED';
 
 export type Notification = {
   id: string;
   userId: string;
-  assignmentId?: string | null;
-  message: string;
-  readAt?: string | null;
+  type: NotificationType;
+  payload: Record<string, unknown>;
   createdAt: string;
+  readAt?: string | null;
 };
 
 export type User = {
   id: string;
   email: string;
-  fullName: string;
-  position: string;
-  role: string;
+  fullName?: string | null;
+  position?: string | null;
+  role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+  orgId: string | null;
 };
 
-export type UserProfile = {
+export type MeProfile = {
   id: string;
   email: string;
-  fullName: string;
-  position: string;
-  role: string;
-  org: {
-    id: string;
-    name: string;
-  };
-  currentAssignment: Assignment | null;
-  assignments: Assignment[];
+  fullName: string | null;
+  position: string | null;
+  role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+  org: Org | null;
+};
+
+export type CurrentWorkplaceResponse = {
+  workplace: Pick<Workplace, 'id' | 'code' | 'name' | 'location'> | null;
+  assignment: Assignment | null;
+  history: Assignment[];
 };
 
 const api = axios.create({
@@ -112,36 +126,107 @@ api.interceptors.response.use(
   },
 );
 
-export const login = async (payload: LoginRequest) => {
-  const { data } = await api.post<LoginResponse>('/auth/login', payload);
+export const login = async (payload: LoginPayload) => {
+  const { data } = await api.post<AuthResponse>('/auth/login', payload);
   return data.accessToken;
 };
 
-type RegisterRequest = {
+export const fetchMeProfile = async () => {
+  const { data } = await api.get<MeProfile>('/me');
+  return data;
+};
+
+export const fetchCurrentWorkplace = async () => {
+  const { data } = await api.get<CurrentWorkplaceResponse>(
+    '/me/current-workplace',
+  );
+  return data;
+};
+
+export const fetchNotifications = async (limit = 10) => {
+  const { data } = await api.get<Notification[]>(`/notifications/me`, {
+    params: { limit },
+  });
+  return data;
+};
+
+export const fetchWorkplaces = async (params: {
+  search?: string;
+  isActive?: boolean;
+  page?: number;
+  pageSize?: number;
+}) => {
+  const { data } = await api.get<PaginatedResponse<Workplace>>('/workplaces', {
+    params,
+  });
+  return data;
+};
+
+export const createWorkplace = async (payload: {
   orgId: string;
-  email: string;
-  password: string;
-  fullName: string;
-  position: string;
-};
-
-export const register = async (payload: RegisterRequest) => {
-  const { data } = await api.post<LoginResponse>('/auth/register', payload);
-  return data.accessToken;
-};
-
-export const fetchProfile = async () => {
-  const { data } = await api.get<UserProfile>('/me');
+  code: string;
+  name: string;
+  location?: string;
+  isActive?: boolean;
+}) => {
+  const { data } = await api.post<Workplace>('/workplaces', payload);
   return data;
 };
 
-export const fetchWorkplaces = async () => {
-  const { data } = await api.get<Workplace[]>('/workplaces');
+export const updateWorkplace = async (
+  id: string,
+  payload: Partial<{
+    orgId: string;
+    code: string;
+    name: string;
+    location?: string;
+    isActive?: boolean;
+  }>,
+) => {
+  const { data } = await api.patch<Workplace>(`/workplaces/${id}`, payload);
   return data;
 };
 
-export const fetchAssignments = async () => {
-  const { data } = await api.get<Assignment[]>('/assignments');
+export const fetchAssignments = async (params: {
+  userId?: string;
+  workplaceId?: string;
+  status?: AssignmentStatus;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}) => {
+  const { data } = await api.get<PaginatedResponse<Assignment>>(
+    '/assignments',
+    {
+      params,
+    },
+  );
+  return data;
+};
+
+export const createAssignment = async (payload: {
+  userId: string;
+  workplaceId: string;
+  startsAt: string;
+  endsAt?: string | null;
+  status?: AssignmentStatus;
+}) => {
+  const { data } = await api.post<Assignment>('/assignments', payload);
+  return data;
+};
+
+export const updateAssignment = async (
+  id: string,
+  payload: Partial<{
+    userId: string;
+    workplaceId: string;
+    startsAt: string;
+    endsAt: string | null;
+    status: AssignmentStatus;
+  }>,
+) => {
+  const { data } = await api.patch<Assignment>(`/assignments/${id}`, payload);
   return data;
 };
 
@@ -150,53 +235,14 @@ export const fetchUsers = async () => {
   return data;
 };
 
-export const fetchNotifications = async () => {
-  const { data } = await api.get<Notification[]>('/notifications/me');
-  return data;
-};
-
-type CreateWorkplaceRequest = {
-  orgId: string;
-  name: string;
-  address: string;
-  capacity: number;
-};
-
-export const createWorkplace = async (payload: CreateWorkplaceRequest) => {
-  const { data } = await api.post<Workplace>('/workplaces', payload);
-  return data;
-};
-
-type CreateAssignmentRequest = {
-  orgId: string;
-  userId: string;
-  workplaceId: string;
-  startsAt: string;
-  endsAt: string;
-  status?: AssignmentStatus;
-};
-
-export const createAssignment = async (payload: CreateAssignmentRequest) => {
-  const { data } = await api.post<Assignment>('/assignments', payload);
-  return data;
-};
-
-type UpdateAssignmentRequest = Partial<Omit<CreateAssignmentRequest, 'orgId'>> & {
-  status?: AssignmentStatus;
-};
-
-export const updateAssignment = async (
-  id: string,
-  payload: UpdateAssignmentRequest,
-) => {
-  const { data } = await api.patch<Assignment>(`/assignments/${id}`, payload);
-  return data;
-};
-
 export const decodeToken = (token: string): JwtPayload | null => {
   try {
     const [, payload] = token.split('.');
-    const decoded = JSON.parse(window.atob(payload));
+    if (!payload) {
+      return null;
+    }
+
+    const decoded = JSON.parse(atob(payload));
     return decoded as JwtPayload;
   } catch (error) {
     console.warn('Failed to decode token', error);

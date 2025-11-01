@@ -1,4 +1,9 @@
-import { PrismaClient, AssignmentStatus, UserRole } from '@prisma/client';
+import {
+  AssignmentStatus,
+  NotificationType,
+  PrismaClient,
+  UserRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -13,146 +18,110 @@ async function main() {
   const org = await prisma.org.create({
     data: {
       name: 'Armico',
-      timezone: 'UTC',
+      slug: 'armico',
     },
   });
 
-  const users = await Promise.all(
-    [
-      {
-        email: 'admin@armico.local',
-        password: 'admin123',
-        role: UserRole.SUPER_ADMIN,
-        fullName: 'Мария Смирнова',
-        position: 'Руководитель IT',
-      },
-      {
-        email: 'manager@armico.local',
-        password: 'manager123',
-        role: UserRole.ORG_ADMIN,
-        fullName: 'Иван Петров',
-        position: 'Операционный директор',
-      },
-      {
-        email: 'worker1@armico.local',
-        password: 'worker123',
-        role: UserRole.WORKER,
-        fullName: 'Светлана Кузнецова',
-        position: 'HR-специалист',
-      },
-      {
-        email: 'worker2@armico.local',
-        password: 'worker123',
-        role: UserRole.WORKER,
-        fullName: 'Дмитрий Волков',
-        position: 'Разработчик',
-      },
-      {
-        email: 'worker3@armico.local',
-        password: 'worker123',
-        role: UserRole.WORKER,
-        fullName: 'Анна Орлова',
-        position: 'Менеджер по продажам',
-      },
-    ].map(async (user) => ({
-      ...user,
-      password: await bcrypt.hash(user.password, 10),
-    })),
-  );
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@armico.local',
+      password: await bcrypt.hash('admin123', 10),
+      role: UserRole.SUPER_ADMIN,
+      fullName: 'System Administrator',
+      position: 'Administrator',
+      orgId: org.id,
+    },
+  });
 
-  const createdUsers = await Promise.all(
-    users.map((user) =>
-      prisma.user.create({
-        data: {
-          orgId: org.id,
-          email: user.email,
-          password: user.password,
-          role: user.role,
-          fullName: user.fullName,
-          position: user.position,
-        },
-      }),
-    ),
-  );
-
-  const [hq, remote, support] = await Promise.all([
-    prisma.workplace.create({
+  const [olga, dmitry] = await Promise.all([
+    prisma.user.create({
       data: {
+        email: 'olga@armico.local',
+        password: await bcrypt.hash('password123', 10),
+        role: UserRole.USER,
+        fullName: 'Ольга Смирнова',
+        position: 'HR specialist',
         orgId: org.id,
-        name: 'Головной офис',
-        address: 'Москва, ул. Арбат, 15',
-        capacity: 50,
       },
     }),
-    prisma.workplace.create({
+    prisma.user.create({
       data: {
+        email: 'dmitry@armico.local',
+        password: await bcrypt.hash('password123', 10),
+        role: UserRole.USER,
+        fullName: 'Дмитрий Иванов',
+        position: 'Support engineer',
         orgId: org.id,
-        name: 'Удалённый кластер',
-        address: 'Санкт-Петербург, Невский проспект, 45',
-        capacity: 30,
-      },
-    }),
-    prisma.workplace.create({
-      data: {
-        orgId: org.id,
-        name: 'Центр поддержки',
-        address: 'Екатеринбург, ул. Ленина, 22',
-        capacity: 20,
       },
     }),
   ]);
 
-  const [admin, manager, worker1, worker2, worker3] = createdUsers;
+  const [hq, support] = await Promise.all([
+    prisma.workplace.create({
+      data: {
+        orgId: org.id,
+        code: 'HQ-001',
+        name: 'Headquarters',
+        location: 'Москва, ул. Арбат, 15',
+        isActive: true,
+      },
+    }),
+    prisma.workplace.create({
+      data: {
+        orgId: org.id,
+        code: 'SUP-001',
+        name: 'Support Center',
+        location: 'Екатеринбург, ул. Ленина, 22',
+        isActive: true,
+      },
+    }),
+  ]);
 
-  const now = new Date();
-  const day = 1000 * 60 * 60 * 24;
+  const assignment = await prisma.assignment.create({
+    data: {
+      userId: olga.id,
+      workplaceId: hq.id,
+      startsAt: new Date(),
+      endsAt: null,
+      status: AssignmentStatus.ACTIVE,
+    },
+  });
 
-  await prisma.assignment.createMany({
-    data: [
-      {
-        orgId: org.id,
-        userId: manager.id,
-        workplaceId: hq.id,
-        startsAt: new Date(now.getTime() - day * 30),
-        endsAt: new Date(now.getTime() + day * 180),
-        status: AssignmentStatus.ACTIVE,
-      },
-      {
-        orgId: org.id,
-        userId: worker1.id,
-        workplaceId: support.id,
-        startsAt: new Date(now.getTime() - day * 15),
-        endsAt: new Date(now.getTime() + day * 15),
-        status: AssignmentStatus.ACTIVE,
-      },
-      {
-        orgId: org.id,
-        userId: worker2.id,
-        workplaceId: remote.id,
-        startsAt: new Date(now.getTime() + day * 7),
-        endsAt: new Date(now.getTime() + day * 90),
-        status: AssignmentStatus.PLANNED,
-      },
-      {
-        orgId: org.id,
-        userId: worker3.id,
-        workplaceId: support.id,
-        startsAt: new Date(now.getTime() - day * 120),
-        endsAt: new Date(now.getTime() - day * 10),
-        status: AssignmentStatus.COMPLETED,
-      },
-    ],
+  await prisma.assignment.create({
+    data: {
+      userId: dmitry.id,
+      workplaceId: support.id,
+      startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      endsAt: null,
+      status: AssignmentStatus.ACTIVE,
+    },
   });
 
   await prisma.notification.createMany({
     data: [
       {
-        userId: worker1.id,
-        message: 'Вы закреплены за центром поддержки',
+        userId: admin.id,
+        type: NotificationType.ASSIGNMENT_CREATED,
+        payload: {
+          assignmentId: assignment.id,
+          workplaceCode: hq.code,
+          workplaceName: hq.name,
+          startsAt: assignment.startsAt,
+          endsAt: assignment.endsAt,
+          status: assignment.status,
+        },
       },
       {
-        userId: worker2.id,
-        message: 'Подготовьтесь к старту работы в удалённом кластере',
+        userId: olga.id,
+        type: NotificationType.ASSIGNMENT_CREATED,
+        payload: {
+          assignmentId: assignment.id,
+          workplaceCode: hq.code,
+          workplaceName: hq.name,
+          startsAt: assignment.startsAt,
+          endsAt: assignment.endsAt,
+          status: assignment.status,
+        },
       },
     ],
   });
@@ -161,11 +130,10 @@ async function main() {
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
+  .catch((error) => {
     console.error(error);
-    await prisma.$disconnect();
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });

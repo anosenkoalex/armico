@@ -2,24 +2,22 @@ import { Card, Form, Input, Button, Typography, message } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { login } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.js';
 
 const Login = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { login: storeToken } = useAuth();
+  const { login: authenticate } = useAuth();
 
   const { mutateAsync, isPending } = useMutation({
-    mutationFn: login,
+    mutationFn: authenticate,
   });
 
   const onFinish = async (values: { email: string; password: string }) => {
     try {
-      const token = await mutateAsync(values);
-      storeToken(token);
+      await mutateAsync(values);
       message.success(t('login.submit'));
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       message.error(t('common.error'));
     }
