@@ -32,6 +32,8 @@ export type Workplace = {
   longitude?: number | null;
 };
 
+export type AssignmentStatus = 'PLANNED' | 'ACTIVE' | 'COMPLETED';
+
 export type Assignment = {
   id: string;
   orgId: string;
@@ -39,11 +41,44 @@ export type Assignment = {
   workplaceId: string;
   startsAt: string;
   endsAt: string;
+  status: AssignmentStatus;
   workplace?: Workplace;
   user?: {
     id: string;
     email: string;
+    fullName?: string;
   };
+};
+
+export type Notification = {
+  id: string;
+  userId: string;
+  assignmentId?: string | null;
+  message: string;
+  readAt?: string | null;
+  createdAt: string;
+};
+
+export type User = {
+  id: string;
+  email: string;
+  fullName: string;
+  position: string;
+  role: string;
+};
+
+export type UserProfile = {
+  id: string;
+  email: string;
+  fullName: string;
+  position: string;
+  role: string;
+  org: {
+    id: string;
+    name: string;
+  };
+  currentAssignment: Assignment | null;
+  assignments: Assignment[];
 };
 
 const api = axios.create({
@@ -82,6 +117,24 @@ export const login = async (payload: LoginRequest) => {
   return data.accessToken;
 };
 
+type RegisterRequest = {
+  orgId: string;
+  email: string;
+  password: string;
+  fullName: string;
+  position: string;
+};
+
+export const register = async (payload: RegisterRequest) => {
+  const { data } = await api.post<LoginResponse>('/auth/register', payload);
+  return data.accessToken;
+};
+
+export const fetchProfile = async () => {
+  const { data } = await api.get<UserProfile>('/me');
+  return data;
+};
+
 export const fetchWorkplaces = async () => {
   const { data } = await api.get<Workplace[]>('/workplaces');
   return data;
@@ -92,8 +145,51 @@ export const fetchAssignments = async () => {
   return data;
 };
 
-export const fetchCurrentWorkplace = async () => {
-  const { data } = await api.get<Assignment | null>('/me/current-workplace');
+export const fetchUsers = async () => {
+  const { data } = await api.get<User[]>('/users');
+  return data;
+};
+
+export const fetchNotifications = async () => {
+  const { data } = await api.get<Notification[]>('/notifications/me');
+  return data;
+};
+
+type CreateWorkplaceRequest = {
+  orgId: string;
+  name: string;
+  address: string;
+  capacity: number;
+};
+
+export const createWorkplace = async (payload: CreateWorkplaceRequest) => {
+  const { data } = await api.post<Workplace>('/workplaces', payload);
+  return data;
+};
+
+type CreateAssignmentRequest = {
+  orgId: string;
+  userId: string;
+  workplaceId: string;
+  startsAt: string;
+  endsAt: string;
+  status?: AssignmentStatus;
+};
+
+export const createAssignment = async (payload: CreateAssignmentRequest) => {
+  const { data } = await api.post<Assignment>('/assignments', payload);
+  return data;
+};
+
+type UpdateAssignmentRequest = Partial<Omit<CreateAssignmentRequest, 'orgId'>> & {
+  status?: AssignmentStatus;
+};
+
+export const updateAssignment = async (
+  id: string,
+  payload: UpdateAssignmentRequest,
+) => {
+  const { data } = await api.patch<Assignment>(`/assignments/${id}`, payload);
   return data;
 };
 

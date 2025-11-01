@@ -24,8 +24,11 @@ model User {
   org       Org      @relation(fields: [orgId], references: [id])
   email     String   @unique
   password  String
+  fullName  String
+  position  String
   role      UserRole @default(WORKER)
   assignments Assignment[]
+  notifications Notification[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -62,8 +65,27 @@ model Assignment {
   workplace    Workplace  @relation(fields: [workplaceId], references: [id])
   startsAt     DateTime
   endsAt       DateTime
+  status       AssignmentStatus @default(PLANNED)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  notifications Notification[]
 
   @@index([orgId, userId, startsAt, endsAt])
+}
+
+model Notification {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id])
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
+  message      String
+  readAt       DateTime?
+  createdAt    DateTime    @default(now())
+}
+
+enum AssignmentStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
 }

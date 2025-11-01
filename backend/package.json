@@ -9,6 +9,7 @@
     "start:prod": "node dist/main.js",
     "prisma:gen": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
+    "seed": "ts-node --esm prisma/seed.ts",
     "lint": "eslint .",
     "format": "prettier -w ."
   },
