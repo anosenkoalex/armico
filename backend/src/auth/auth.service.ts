@@ -1,9 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../common/prisma/prisma.service.js';
 import { JwtPayload } from './jwt-payload.interface.js';
 import { LoginDto } from './dto/login.dto.js';
+import { RegisterDto } from './dto/register.dto.js';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -32,6 +38,50 @@ export class AuthService {
 
   async login({ email, password }: LoginDto) {
     const user = await this.validateUser(email, password);
+
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      orgId: user.orgId,
+      role: user.role,
+    };
+
+    return {
+      accessToken: await this.jwtService.signAsync(payload),
+    };
+  }
+
+  async register({ email, password, orgId, fullName, position }: RegisterDto) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existing) {
+      throw new BadRequestException({
+        code: 'EMAIL_TAKEN',
+        message: 'Email already in use',
+      });
+    }
+
+    const org = await this.prisma.org.findUnique({ where: { id: orgId } });
+
+    if (!org) {
+      throw new BadRequestException({
+        code: 'ORG_NOT_FOUND',
+        message: 'Organization not found',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        orgId,
+        fullName,
+        position,
+        role: UserRole.WORKER,
+      },
+    });
 
     const payload: JwtPayload = {
       sub: user.id,
