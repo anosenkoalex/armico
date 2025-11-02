@@ -12,7 +12,8 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "seed": "tsx prisma/seed.ts",
     "lint": "eslint .",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "prepare": "prisma generate"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.10",
@@ -39,6 +40,7 @@
     "@types/passport-jwt": "^3.0.9",
     "prisma": "^5.18.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.8.1",
     "typescript": "^5.5.4"
   }
 }

@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.13.1",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "postinstall": "husky install",
     "lint": "eslint .",
